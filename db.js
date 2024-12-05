@@ -12,6 +12,7 @@ export const connectDB = async () => {
     if (!db) {
         await client.connect();
         db = client.db('CareMatch');
+        console.log('Connected to MongoDB');
     }
     return db;
 }
