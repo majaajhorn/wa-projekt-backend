@@ -1,0 +1,1 @@
+export const userCollection = async (db) => db.collection('users');
