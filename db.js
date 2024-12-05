@@ -1,7 +1,9 @@
 import { MongoClient } from "mongodb";
+import dotenv from 'dotenv';
 
-// majhorn - zI4w97wI0YlduWy1
-const uri = 'mongodb+srv://majhorn:zI4w97wI0YlduWy1@carematch.uw8jk.mongodb.net/?retryWrites=true&w=majority&appName=CareMatch';
+
+dotenv.config();
+const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
 let db;
