@@ -148,4 +148,47 @@ router.post('/upload-profile-picture', verifyToken, upload.single('profilePictur
   }
 });
 
+router.put('/update-profile', verifyToken, async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const db = await connectDB();
+    const users = await userCollection(db);
+
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update email if provided
+    if (email) {
+      const existingUser = await users.findOne({ email });
+      if (existingUser && existingUser._id.toString() !== userId) {
+        return res.status(400).json({ message: 'Email is already in use.' });
+      }
+      user.email = email;
+    }
+
+    // Update password if provided
+    if (currentPassword && newPassword) {
+      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isPasswordValid) {
+        return res.status(400).json({ message: 'Current password is incorrect.' });
+      }
+      user.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    await users.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { email: user.email, password: user.password } }
+    );
+
+    res.status(200).json({ message: 'Profile updated successfully.' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Error updating profile.' });
+  }
+});
+
 export default router;
