@@ -5,11 +5,31 @@ import dotenv from 'dotenv';
 import { userCollection } from '../models/user.js';
 import { connectDB } from '../db.js';
 import { ObjectId } from 'mongodb';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 dotenv.config();
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = './uploads/';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath);
+    }
+    cb(null, uploadPath); // Save files in the 'uploads' folder
+  },
+  filename: (req, file, cb) => {
+    console.log('Uploading file:', file.originalname);
+    cb(null, `${Date.now()}-${file.originalname}`);
+  },
+});
+
+const upload = multer({ storage });
 
 
 // Middleware to verify JWT token
@@ -101,5 +121,31 @@ router.get('/profile', verifyToken, async (req, res) => {
       res.status(500).json({ message: 'Error fetching user profile' });
     }
   });
+
+// Route to upload profile picture
+router.post('/upload-profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
+  try {
+    console.log('Uploaded file:', req.file);
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const db = await connectDB();
+    const users = await userCollection(db);
+
+    // Update user's profile picture URL
+    const profilePictureUrl = `http://localhost:5000/uploads/${req.file.filename}`;
+    await users.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { profilePicture: profilePictureUrl } }
+    );
+
+    res.status(200).json({ message: 'Profile picture uploaded successfully', profilePictureUrl });
+  } catch (err) {
+    console.error('Error uploading profile picture:', err);
+    res.status(500).json({ message: 'Error uploading profile picture' });
+  }
+});
 
 export default router;
