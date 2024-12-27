@@ -123,34 +123,9 @@ router.get('/profile', verifyToken, async (req, res) => {
   });
 
 // Route to upload profile picture
-router.post('/upload-profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
-  try {
-    console.log('Uploaded file:', req.file);
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
-    const userId = req.user.id;
-    const db = await connectDB();
-    const users = await userCollection(db);
-
-    // Update user's profile picture URL
-    const profilePictureUrl = `http://localhost:5000/uploads/${req.file.filename}`;
-    await users.updateOne(
-      { _id: new ObjectId(userId) },
-      { $set: { profilePicture: profilePictureUrl } }
-    );
-
-    res.status(200).json({ message: 'Profile picture uploaded successfully', profilePictureUrl });
-  } catch (err) {
-    console.error('Error uploading profile picture:', err);
-    res.status(500).json({ message: 'Error uploading profile picture' });
-  }
-});
-
 router.put('/update-profile', verifyToken, async (req, res) => {
-  const { email, currentPassword, newPassword } = req.body;
   const userId = req.user.id;
+  const { email, currentPassword, newPassword, gender, location, englishLevel, qualification, careExperience, liveInExperience, drivingLicence } = req.body;
 
   try {
     const db = await connectDB();
@@ -179,15 +154,36 @@ router.put('/update-profile', verifyToken, async (req, res) => {
       user.password = await bcrypt.hash(newPassword, 10);
     }
 
+    // Update other profile fields (gender, location, etc.)
+    if (gender || location || englishLevel || qualification || careExperience || liveInExperience || drivingLicence) {
+      user.profileData = {
+        gender,
+        location,
+        englishLevel,
+        qualification,
+        careExperience,
+        liveInExperience,
+        drivingLicence,
+      };
+    }
+
     await users.updateOne(
       { _id: new ObjectId(userId) },
-      { $set: { email: user.email, password: user.password } }
+      {
+        $set: {
+          email: user.email,
+          password: user.password,
+          profileData: user.profileData,
+        },
+      }
     );
 
-    res.status(200).json({ message: 'Profile updated successfully.' });
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    res.status(500).json({ message: 'Error updating profile.' });
+    // Return updated profile data to frontend
+    res.status(200).json({ message: 'Profile updated successfully', user: user });
+
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ message: 'Error updating profile' });
   }
 });
 
