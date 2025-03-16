@@ -123,9 +123,55 @@ router.get('/profile', verifyToken, async (req, res) => {
   });
 
 // Route to upload profile picture
+router.post('/upload-profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
+  }
+
+  try {
+    const userId = req.user.id;
+    const db = await connectDB();
+    const users = await userCollection(db);
+
+    // Get server URL
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    
+    // Create profile picture URL
+    const profilePictureUrl = `${baseUrl}/${req.file.path.replace(/\\/g, '/')}`;
+
+    // Update user document with profile picture URL
+    await users.updateOne(
+      { _id: new ObjectId(userId) },
+      { $set: { profilePicture: profilePictureUrl } }
+    );
+
+    // Return success response with profile picture URL
+    res.status(200).json({
+      message: 'Profile picture uploaded successfully',
+      profilePicture: profilePictureUrl
+    });
+  } catch (err) {
+    console.error('Error uploading profile picture:', err);
+    res.status(500).json({ message: 'Error uploading profile picture' });
+  }
+});
+// Route to update profile
 router.put('/update-profile', verifyToken, async (req, res) => {
   const userId = req.user.id;
-  const { email, currentPassword, newPassword, gender, location, englishLevel, qualification, careExperience, liveInExperience, drivingLicence } = req.body;
+  const { 
+    email, 
+    currentPassword, 
+    newPassword, 
+    gender, 
+    location, 
+    englishLevel, 
+    qualification, 
+    careExperience, 
+    liveInExperience, 
+    drivingLicence 
+  } = req.body;
 
   try {
     const db = await connectDB();
@@ -154,18 +200,42 @@ router.put('/update-profile', verifyToken, async (req, res) => {
       user.password = await bcrypt.hash(newPassword, 10);
     }
 
-    // Update other profile fields (gender, location, etc.)
-    if (gender || location || englishLevel || qualification || careExperience || liveInExperience || drivingLicence) {
-      user.profileData = {
-        gender,
-        location,
-        englishLevel,
-        qualification,
-        careExperience,
-        liveInExperience,
-        drivingLicence,
-      };
+    // Initialize profileData if it doesn't exist
+    if (!user.profileData) {
+      user.profileData = {};
     }
+
+    // Update profile fields if provided
+    if (gender !== undefined) user.profileData.gender = gender;
+    if (location !== undefined) user.profileData.location = location;
+    if (englishLevel !== undefined) user.profileData.englishLevel = englishLevel;
+    
+    // Handle array fields for qualification and careExperience
+    if (qualification !== undefined) {
+      // Ensure qualification is stored as an array even if only one value is sent
+      user.profileData.qualification = Array.isArray(qualification) ? qualification : [qualification];
+    }
+    
+    if (careExperience !== undefined) {
+      // Ensure careExperience is stored as an array even if only one value is sent
+      user.profileData.careExperience = Array.isArray(careExperience) ? careExperience : [careExperience];
+    }
+    
+    if (liveInExperience !== undefined) user.profileData.liveInExperience = liveInExperience;
+    if (drivingLicence !== undefined) user.profileData.drivingLicence = drivingLicence;
+
+    // Check if profile is complete
+    const profileComplete = user.profileData.gender && 
+                            user.profileData.location && 
+                            user.profileData.englishLevel && 
+                            user.profileData.qualification && 
+                            user.profileData.qualification.length > 0 &&
+                            user.profileData.careExperience && 
+                            user.profileData.careExperience.length > 0 && 
+                            user.profileData.liveInExperience && 
+                            user.profileData.drivingLicence;
+                            
+    user.profileCompleted = profileComplete;
 
     await users.updateOne(
       { _id: new ObjectId(userId) },
@@ -174,6 +244,7 @@ router.put('/update-profile', verifyToken, async (req, res) => {
           email: user.email,
           password: user.password,
           profileData: user.profileData,
+          profileCompleted: user.profileCompleted
         },
       }
     );
