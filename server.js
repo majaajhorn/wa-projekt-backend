@@ -3,6 +3,7 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import authRoutes from './routes/auth.js';
 import dotenv from 'dotenv';
+import jobRoutes from './routes/jobs.js';
 
 const app = express();
 const PORT = 5000;
@@ -25,5 +26,6 @@ const corsOptions = {
 
   app.use('/uploads', express.static('uploads'));
 
+  app.use('/jobs', jobRoutes);
   
   app.listen(PORT, () => console.log(`Server is running on http://localhost:${PORT}`));
