@@ -258,4 +258,31 @@ router.put('/update-profile', verifyToken, async (req, res) => {
   }
 });
 
+// Route to get all carers/job seekers
+router.get('/carers', verifyToken, async (req, res) => {
+  try {
+    const db = await connectDB();
+    const users = await userCollection(db);
+    
+    // Fetch all users with role 'jobseeker'
+    // Note: We're not filtering by profileCompleted to ensure we get all users
+    const carers = await users.find({ 
+      role: 'jobseeker'
+    }).toArray();
+
+    console.log(`Found ${carers.length} job seekers`);
+
+    // Remove sensitive information before sending to client
+    const safeCarers = carers.map(carer => {
+      const { password, ...safeData } = carer;
+      return safeData;
+    });
+
+    res.status(200).json(safeCarers);
+  } catch (err) {
+    console.error('Error fetching carers:', err);
+    res.status(500).json({ message: 'Error fetching carers' });
+  }
+});
+
 export default router;
