@@ -158,6 +158,7 @@ router.post('/upload-profile-picture', verifyToken, upload.single('profilePictur
   }
 });
 // Route to update profile
+// Route to update profile
 router.put('/update-profile', verifyToken, async (req, res) => {
   const userId = req.user.id;
   const { 
@@ -170,7 +171,9 @@ router.put('/update-profile', verifyToken, async (req, res) => {
     qualification, 
     careExperience, 
     liveInExperience, 
-    drivingLicence 
+    drivingLicence,
+    aboutYourself, // Add the new field
+    companyName    // Add this field for employer profiles
   } = req.body;
 
   try {
@@ -223,19 +226,40 @@ router.put('/update-profile', verifyToken, async (req, res) => {
     
     if (liveInExperience !== undefined) user.profileData.liveInExperience = liveInExperience;
     if (drivingLicence !== undefined) user.profileData.drivingLicence = drivingLicence;
+    
+    // Handle the new aboutYourself field
+    if (aboutYourself !== undefined) user.profileData.aboutYourself = aboutYourself;
+    
+    // Handle company name for employer profiles
+    if (companyName !== undefined) user.profileData.companyName = companyName;
 
-    // Check if profile is complete
-    const profileComplete = user.profileData.gender && 
-                            user.profileData.location && 
-                            user.profileData.englishLevel && 
-                            user.profileData.qualification && 
-                            user.profileData.qualification.length > 0 &&
-                            user.profileData.careExperience && 
-                            user.profileData.careExperience.length > 0 && 
-                            user.profileData.liveInExperience && 
-                            user.profileData.drivingLicence;
+    // Check if profile is complete based on user role
+    let profileComplete = false;
+    
+    if (user.role === 'jobseeker') {
+      profileComplete = user.profileData.gender && 
+                        user.profileData.location && 
+                        user.profileData.englishLevel && 
+                        user.profileData.qualification && 
+                        user.profileData.qualification.length > 0 &&
+                        user.profileData.careExperience && 
+                        user.profileData.careExperience.length > 0 && 
+                        user.profileData.liveInExperience && 
+                        user.profileData.drivingLicence;
+    } else if (user.role === 'employer') {
+      profileComplete = user.profileData.gender && 
+                        user.profileData.location && 
+                        user.profileData.companyName;
+    }
                             
     user.profileCompleted = profileComplete;
+
+    // Log the data being saved to debug
+    console.log('Updating user profile with data:', {
+      email: user.email,
+      profileData: user.profileData,
+      profileCompleted: user.profileCompleted
+    });
 
     await users.updateOne(
       { _id: new ObjectId(userId) },
