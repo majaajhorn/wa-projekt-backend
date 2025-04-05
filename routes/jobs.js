@@ -112,34 +112,6 @@ router.get('/', async (req, res) => {
     // Get jobs with filter and sort by posted date (newest first)
     const jobListings = await jobs.find(filter)
       .sort({ postedDate: -1 })
-      .project({
-        _id: 1,
-        title: 1,
-        employerId: 1,
-        company: 1,
-        salary: 1,
-        salaryPeriod: 1,
-        salaryMin: 1,
-        salaryMax: 1,
-        employmentType: 1,
-        jobType: 1,
-        location: 1,
-        description: 1,
-        requirements: 1,
-        qualifications: 1,
-        skills: 1,
-        drivingLicense: 1,
-        experienceLevel: 1,
-        contactEmail: 1,
-        contactPhone: 1,
-        postedDate: 1,
-        applicationDeadline: 1,
-        active: 1,
-        applications: 1,
-        positions: 1,
-        benefits: 1,
-        createdAt: 1
-      })
       .toArray();
     
     res.status(200).json(jobListings);
@@ -149,25 +121,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-
-// Get jobs posted by the current employer
-router.get('/my-jobs', verifyToken, isEmployer, async (req, res) => {
-  try {
-    const db = await connectDB();
-    const jobs = await jobCollection(db);
-    
-    const employerJobs = await jobs.find({ 
-      employerId: req.user.id 
-    }).sort({ postedDate: -1 }).toArray();
-    
-    res.status(200).json(employerJobs);
-  } catch (error) {
-    console.error('Error getting employer jobs:', error);
-    res.status(500).json({ message: 'Error fetching your job listings' });
-  }
-});
-
-// Get a single job by ID
+// Update the GET /:id route to include employer email
 router.get('/:id', async (req, res) => {
   try {
     const jobId = req.params.id;
@@ -204,15 +158,31 @@ router.get('/:id', async (req, res) => {
       }
     }
     
-    // Log the job data to debug
-    console.log('Job details being sent to client:', job);
-    
     res.status(200).json(job);
   } catch (error) {
     console.error('Error getting job details:', error);
     res.status(500).json({ message: 'Error fetching job details' });
   }
 });
+
+
+// Get jobs posted by the current employer
+router.get('/my-jobs', verifyToken, isEmployer, async (req, res) => {
+  try {
+    const db = await connectDB();
+    const jobs = await jobCollection(db);
+    
+    const employerJobs = await jobs.find({ 
+      employerId: req.user.id 
+    }).sort({ postedDate: -1 }).toArray();
+    
+    res.status(200).json(employerJobs);
+  } catch (error) {
+    console.error('Error getting employer jobs:', error);
+    res.status(500).json({ message: 'Error fetching your job listings' });
+  }
+});
+
 
 // Update a job posting
 router.put('/:id', verifyToken, isEmployer, async (req, res) => {
