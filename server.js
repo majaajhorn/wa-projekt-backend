@@ -1,31 +1,36 @@
 import express from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
-import authRoutes from './routes/auth.js';
 import dotenv from 'dotenv';
-import jobRoutes from './routes/jobs.js';
+import authRoutes from './routes/auth.js';
+import jobsRoutes from './routes/jobs.js';
+import applicationsRoutes from './routes/applications.js'; // Add this import
+import usersRoutes from './routes/users.js'; // Add this import
+
+dotenv.config();
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-// CORS configuration
-const corsOptions = {
-    origin: /http:\/\/localhost:\d+/, // Allow requests from any localhost port
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],  // Allow specific HTTP methods
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'], // Allow specific headers
-  };
-  
-  // Apply CORS middleware with the specified options
-  app.use(cors(corsOptions));
-  
-  // Middleware
-  app.use(bodyParser.json());
-  
-  // Routes
-  app.use('/auth', authRoutes);
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  app.use('/uploads', express.static('uploads'));
+// Make uploads folder accessible
+app.use('/uploads', express.static('uploads'));
 
-  app.use('/jobs', jobRoutes);
-  
-  app.listen(PORT, () => console.log(`Server is running on http://localhost:${PORT}`));
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/jobs', jobsRoutes);
+app.use('/api/applications', applicationsRoutes); // Add this route
+app.use('/api/users', usersRoutes); // Add this route
+
+// Default route
+app.get('/', (req, res) => {
+  res.send('Job Portal API is running');
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
