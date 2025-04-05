@@ -84,7 +84,6 @@ router.post('/create', verifyToken, isEmployer, async (req, res) => {
   }
 });
 
-// Get all jobs (with optional filters)
 router.get('/', async (req, res) => {
   try {
     const { location, employmentType, keyword } = req.query;
@@ -111,7 +110,37 @@ router.get('/', async (req, res) => {
     const jobs = await jobCollection(db);
     
     // Get jobs with filter and sort by posted date (newest first)
-    const jobListings = await jobs.find(filter).sort({ postedDate: -1 }).toArray();
+    const jobListings = await jobs.find(filter)
+      .sort({ postedDate: -1 })
+      .project({
+        _id: 1,
+        title: 1,
+        employerId: 1,
+        company: 1,
+        salary: 1,
+        salaryPeriod: 1,
+        salaryMin: 1,
+        salaryMax: 1,
+        employmentType: 1,
+        jobType: 1,
+        location: 1,
+        description: 1,
+        requirements: 1,
+        qualifications: 1,
+        skills: 1,
+        drivingLicense: 1,
+        experienceLevel: 1,
+        contactEmail: 1,
+        contactPhone: 1,
+        postedDate: 1,
+        applicationDeadline: 1,
+        active: 1,
+        applications: 1,
+        positions: 1,
+        benefits: 1,
+        createdAt: 1
+      })
+      .toArray();
     
     res.status(200).json(jobListings);
   } catch (error) {
@@ -119,6 +148,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ message: 'Error fetching job listings' });
   }
 });
+
 
 // Get jobs posted by the current employer
 router.get('/my-jobs', verifyToken, isEmployer, async (req, res) => {
@@ -154,6 +184,28 @@ router.get('/:id', async (req, res) => {
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
+    
+    // Get employer information to include email
+    if (job.employerId) {
+      try {
+        const employers = db.collection('users');
+        const employer = await employers.findOne({ 
+          _id: new ObjectId(job.employerId),
+          role: 'employer' 
+        });
+        
+        if (employer) {
+          // Add employer email to job object
+          job.employerEmail = employer.email;
+        }
+      } catch (err) {
+        console.error('Error fetching employer details:', err);
+        // Continue without employer details if error occurs
+      }
+    }
+    
+    // Log the job data to debug
+    console.log('Job details being sent to client:', job);
     
     res.status(200).json(job);
   } catch (error) {
