@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import path from 'path';
+import { createNotification } from './notifications.js';
 
 dotenv.config();
 
@@ -181,6 +182,11 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
       return res.status(400).json({ message: 'You have already applied for this job' });
     }
     
+    // Get applicant details for notification
+    const applicant = await db.collection('users').findOne({
+      _id: new ObjectId(req.user.id)
+    });
+    
     // Create application
     const application = {
       jobId,
@@ -202,6 +208,17 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
         { _id: new ObjectId(jobId) },
         { $push: { applications: result.insertedId.toString() } }
       );
+      
+      // Create notification for employer
+      await createNotification(db, {
+        recipientId: job.employerId,
+        senderId: req.user.id,
+        type: 'job_application',
+        title: 'New Job Application',
+        message: `${req.user.firstName} ${req.user.lastName} has applied for your job: ${job.title}`,
+        relatedId: result.insertedId.toString(),
+        relatedType: 'application'
+      });
       
       res.status(201).json({
         message: 'Application submitted successfully',
@@ -265,6 +282,136 @@ router.delete('/:id', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error withdrawing application:', error);
     res.status(500).json({ message: 'Error withdrawing application' });
+  }
+});
+
+// Get all applications for the employer
+router.get('/employer-applications', verifyToken, async (req, res) => {
+  try {
+    const db = await connectDB();
+    
+    // Find applications where the employer is the current user
+    const applications = await db.collection('applications').find({
+      employerId: req.user.id
+    }).toArray();
+    
+    // Get job details for each application
+    const jobIds = applications.map(app => new ObjectId(app.jobId));
+    const jobs = await db.collection('jobs').find({
+      _id: { $in: jobIds }
+    }).toArray();
+    
+    // Get applicant details for each application
+    const applicantIds = applications.map(app => new ObjectId(app.applicantId));
+    const applicants = await db.collection('users').find({
+      _id: { $in: applicantIds }
+    }).project({
+      _id: 1,
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+      phone: 1
+    }).toArray();
+    
+    // Combine application data with job and applicant details
+    const result = applications.map(app => {
+      const job = jobs.find(j => j._id.toString() === app.jobId);
+      const applicant = applicants.find(a => a._id.toString() === app.applicantId);
+      
+      return {
+        ...app,
+        job,
+        applicant
+      };
+    });
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error fetching employer applications:', error);
+    res.status(500).json({ message: 'Error fetching applications' });
+  }
+});
+
+router.put('/:id/status', verifyToken, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    const { status } = req.body;
+    
+    if (!ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ message: 'Invalid application ID' });
+    }
+    
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+    
+    // Validate status
+    const validStatuses = ['Pending', 'Reviewed', 'Interviewing', 'Hired', 'Rejected'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+    
+    const db = await connectDB();
+    
+    // Find the application
+    const application = await db.collection('applications').findOne({
+      _id: new ObjectId(applicationId)
+    });
+    
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+    
+    // Check if user is authorized to update this application
+    if (application.employerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to update this application' });
+    }
+    
+    // Update the application
+    const result = await db.collection('applications').updateOne(
+      { _id: new ObjectId(applicationId) },
+      { 
+        $set: { 
+          status, 
+          lastStatusUpdate: new Date().toISOString() 
+        } 
+      }
+    );
+    
+    if (result.modifiedCount === 1) {
+      // Get the applicant to create a notification
+      const applicant = await db.collection('users').findOne({
+        _id: new ObjectId(application.applicantId)
+      });
+      
+      // Get the job details
+      const job = await db.collection('jobs').findOne({
+        _id: new ObjectId(application.jobId)
+      });
+      
+      // Create notification for the applicant
+      if (applicant && job) {
+        await createNotification(db, {
+          recipientId: application.applicantId,
+          senderId: req.user.id,
+          type: 'application_status',
+          title: 'Application Status Update',
+          message: `Your application for ${job.title} has been updated to ${status}`,
+          relatedId: applicationId,
+          relatedType: 'application'
+        });
+      }
+      
+      res.status(200).json({ 
+        message: 'Application status updated successfully',
+        status
+      });
+    } else {
+      res.status(400).json({ message: 'Failed to update application status' });
+    }
+  } catch (error) {
+    console.error('Error updating application status:', error);
+    res.status(500).json({ message: 'Error updating application status' });
   }
 });
 
