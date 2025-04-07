@@ -18,6 +18,7 @@ export async function jobCollection(db) {
     await jobs.createIndex({ employmentType: 1 }); // Filter by employment type
     await jobs.createIndex({ postedDate: -1 }); // Sort by posted date
     await jobs.createIndex({ employerId: 1 }); // Filter by employer
+    await jobs.createIndex({ archived: 1 }); // Filter by archived status
     
     console.log('Jobs collection created with indexes');
   }
