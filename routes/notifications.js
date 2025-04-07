@@ -165,17 +165,39 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Create a new notification (internal function to be used by other routes)
 export async function createNotification(db, data) {
   try {
     const notifications = await notificationCollection(db);
+    
+    // If this is a job application notification, get the applicant's name
+    let message = data.message;
+    if (data.type === 'job_application' && data.senderId) {
+      try {
+        // Get the user who applied (the sender)
+        const user = await db.collection('users').findOne({ _id: new ObjectId(data.senderId) });
+        
+        if (user && user.fullName) {
+          // Replace any placeholders in the message with the actual name
+          if (message.includes('undefined undefined')) {
+            message = message.replace('undefined undefined', user.fullName);
+          } else if (message.includes('has applied for your job')) {
+            // If the message follows the format "[Name] has applied for your job: [JobTitle]"
+            // Replace the beginning of the message with the proper name
+            const jobTitle = message.split('has applied for your job:')[1]?.trim() || '';
+            message = `${user.fullName} has applied for your job: ${jobTitle}`;
+          }
+        }
+      } catch (userError) {
+        console.error('Error fetching user for notification:', userError);
+      }
+    }
     
     const notification = {
       recipientId: data.recipientId,
       senderId: data.senderId || null,
       type: data.type,
       title: data.title,
-      message: data.message,
+      message: message, // Use the potentially updated message
       relatedId: data.relatedId || null,
       relatedType: data.relatedType || null,
       isRead: false,

@@ -209,13 +209,21 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
         { $push: { applications: result.insertedId.toString() } }
       );
       
-      // Create notification for employer
+      // CREATE NOTIFICATION - UPDATE THIS PART
+      // Get the applicant's full name
+      const applicant = await db.collection('users').findOne({
+        _id: new ObjectId(req.user.id)
+      });
+      
+      const applicantName = applicant?.fullName || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim();
+      
+      // Create notification with proper name
       await createNotification(db, {
         recipientId: job.employerId,
         senderId: req.user.id,
         type: 'job_application',
         title: 'New Job Application',
-        message: `${req.user.firstName} ${req.user.lastName} has applied for your job: ${job.title}`,
+        message: `${applicantName} has applied for your job: ${job.title}`,
         relatedId: result.insertedId.toString(),
         relatedType: 'application'
       });
