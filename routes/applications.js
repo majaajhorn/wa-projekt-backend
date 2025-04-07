@@ -309,22 +309,32 @@ router.get('/employer-applications', verifyToken, async (req, res) => {
       _id: { $in: jobIds }
     }).toArray();
     
-    // Get applicant details for each application
-    const applicantIds = applications.map(app => new ObjectId(app.applicantId));
+    // Get applicant details for each application - UPDATED to match your DB schema
+    const applicantIds = applications.map(app => app.applicantId).filter(id => id);
+    const objectIdApplicantIds = applicantIds.map(id => {
+      try {
+        return new ObjectId(id);
+      } catch (e) {
+        console.error(`Invalid ObjectId: ${id}`);
+        return null;
+      }
+    }).filter(id => id);
+    
     const applicants = await db.collection('users').find({
-      _id: { $in: applicantIds }
+      _id: { $in: objectIdApplicantIds }
     }).project({
       _id: 1,
-      firstName: 1,
-      lastName: 1,
+      fullName: 1,  // Use fullName instead of firstName/lastName
       email: 1,
       phone: 1
     }).toArray();
     
+    console.log('Found applicants:', applicants); // Debug log
+    
     // Combine application data with job and applicant details
     const result = applications.map(app => {
       const job = jobs.find(j => j._id.toString() === app.jobId);
-      const applicant = applicants.find(a => a._id.toString() === app.applicantId);
+      const applicant = applicants.find(a => a && a._id && app.applicantId && a._id.toString() === app.applicantId);
       
       return {
         ...app,
