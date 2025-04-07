@@ -83,44 +83,70 @@ router.get('/my-applications', verifyToken, async (req, res) => {
   }
 });
 
-// Get a single application by ID
-router.get('/:id', verifyToken, async (req, res) => {
+// Get all applications for the employer
+// MOVED THIS ROUTE BEFORE THE /:id ROUTE TO FIX THE CONFLICT
+router.get('/employer-applications', verifyToken, async (req, res) => {
   try {
-    const applicationId = req.params.id;
-    
-    if (!ObjectId.isValid(applicationId)) {
-      return res.status(400).json({ message: 'Invalid application ID' });
-    }
-    
     const db = await connectDB();
-    const application = await db.collection('applications').findOne({
-      _id: new ObjectId(applicationId)
-    });
     
-    if (!application) {
-      return res.status(404).json({ message: 'Application not found' });
+    // Find applications where the employer is the current user
+    const applications = await db.collection('applications').find({
+      employerId: req.user.id
+    }).toArray();
+    
+    // Get job details for each application
+    const jobIds = applications.map(app => new ObjectId(app.jobId));
+    const jobs = await db.collection('jobs').find({
+      _id: { $in: jobIds }
+    }).toArray();
+    
+    // Get applicant details for each application
+const applicantIds = applications.map(app => {
+  try {
+    // Handle cases where applicantId might be a string
+    return new ObjectId(app.applicantId);
+  } catch (e) {
+    console.error(`Invalid ObjectId for applicantId: ${app.applicantId}`);
+    return null;
+  }
+}).filter(id => id !== null);
+
+const applicants = await db.collection('users').find({
+  _id: { $in: applicantIds }
+}).project({
+  _id: 1,
+  firstName: 1,
+  lastName: 1,
+  fullName: 1, // Add fullName field to projection
+  email: 1,
+  phone: 1
+}).toArray();
+
+console.log(`Found ${applicants.length} applicants for ${applicantIds.length} IDs`);
+
+  // Combine application data with job and applicant details
+  const result = applications.map(app => {
+    const job = jobs.find(j => j._id.toString() === app.jobId);
+    // Convert applicantId to string for comparison if it exists
+    const applicantIdStr = app.applicantId ? app.applicantId.toString() : null;
+    const applicant = applicants.find(a => a._id.toString() === applicantIdStr);
+    
+    // Log if applicant not found for debugging
+    if (!applicant && applicantIdStr) {
+      console.log(`No applicant found for ID: ${applicantIdStr}`);
     }
     
-    // Check if user is authorized to view this application
-    if (application.applicantId !== req.user.id && application.employerId !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to view this application' });
-    }
-    
-    // Get job details
-    const job = await db.collection('jobs').findOne({
-      _id: new ObjectId(application.jobId)
-    });
-    
-    // Combine application with job details
-    const result = {
-      ...application,
-      job
+    return {
+      ...app,
+      job: job || { title: 'Unknown Job' },
+      applicant: applicant || null
     };
+  });
     
     res.status(200).json(result);
   } catch (error) {
-    console.error('Error fetching application:', error);
-    res.status(500).json({ message: 'Error fetching application details' });
+    console.error('Error fetching employer applications:', error);
+    res.status(500).json({ message: 'Error fetching applications' });
   }
 });
 
@@ -197,7 +223,10 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
       resumePath: req.file ? req.file.path : null,
       status: 'Pending',
       appliedDate: new Date().toISOString(),
-      lastStatusUpdate: new Date().toISOString()
+      lastStatusUpdate: new Date().toISOString(),
+      // Store the applicant's name directly in the application document as well
+      applicantName: applicant ? `${applicant.firstName} ${applicant.lastName}` : "Unknown Applicant",
+      applicantEmail: applicant ? applicant.email : "unknown@example.com"
     };
     
     const result = await db.collection('applications').insertOne(application);
@@ -215,7 +244,7 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
         senderId: req.user.id,
         type: 'job_application',
         title: 'New Job Application',
-        message: `${req.user.firstName} ${req.user.lastName} has applied for your job: ${job.title}`,
+        message: `${applicant?.firstName || 'A user'} ${applicant?.lastName || ''} has applied for your job: ${job.title}`,
         relatedId: result.insertedId.toString(),
         relatedType: 'application'
       });
@@ -230,6 +259,57 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
   } catch (error) {
     console.error('Error submitting application:', error);
     res.status(500).json({ message: 'Error submitting application' });
+  }
+});
+
+// Get a single application by ID
+// THIS ROUTE MOVED AFTER THE MORE SPECIFIC ROUTES
+router.get('/:id', verifyToken, async (req, res) => {
+  try {
+    const applicationId = req.params.id;
+    
+    if (!ObjectId.isValid(applicationId)) {
+      return res.status(400).json({ message: 'Invalid application ID' });
+    }
+    
+    const db = await connectDB();
+    const application = await db.collection('applications').findOne({
+      _id: new ObjectId(applicationId)
+    });
+    
+    if (!application) {
+      return res.status(404).json({ message: 'Application not found' });
+    }
+    
+    // Check if user is authorized to view this application
+    if (application.applicantId !== req.user.id && application.employerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized to view this application' });
+    }
+    
+    // Get job details
+    const job = await db.collection('jobs').findOne({
+      _id: new ObjectId(application.jobId)
+    });
+    
+    // Get applicant details if needed
+    let applicant = null;
+    if (application.applicantId && ObjectId.isValid(application.applicantId)) {
+      applicant = await db.collection('users').findOne({
+        _id: new ObjectId(application.applicantId)
+      });
+    }
+    
+    // Combine application with job details
+    const result = {
+      ...application,
+      job,
+      applicant
+    };
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    res.status(500).json({ message: 'Error fetching application details' });
   }
 });
 
@@ -285,53 +365,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Get all applications for the employer
-router.get('/employer-applications', verifyToken, async (req, res) => {
-  try {
-    const db = await connectDB();
-    
-    // Find applications where the employer is the current user
-    const applications = await db.collection('applications').find({
-      employerId: req.user.id
-    }).toArray();
-    
-    // Get job details for each application
-    const jobIds = applications.map(app => new ObjectId(app.jobId));
-    const jobs = await db.collection('jobs').find({
-      _id: { $in: jobIds }
-    }).toArray();
-    
-    // Get applicant details for each application
-    const applicantIds = applications.map(app => new ObjectId(app.applicantId));
-    const applicants = await db.collection('users').find({
-      _id: { $in: applicantIds }
-    }).project({
-      _id: 1,
-      firstName: 1,
-      lastName: 1,
-      email: 1,
-      phone: 1
-    }).toArray();
-    
-    // Combine application data with job and applicant details
-    const result = applications.map(app => {
-      const job = jobs.find(j => j._id.toString() === app.jobId);
-      const applicant = applicants.find(a => a._id.toString() === app.applicantId);
-      
-      return {
-        ...app,
-        job,
-        applicant
-      };
-    });
-    
-    res.status(200).json(result);
-  } catch (error) {
-    console.error('Error fetching employer applications:', error);
-    res.status(500).json({ message: 'Error fetching applications' });
-  }
-});
-
 router.put('/:id/status', verifyToken, async (req, res) => {
   try {
     const applicationId = req.params.id;
@@ -380,9 +413,12 @@ router.put('/:id/status', verifyToken, async (req, res) => {
     
     if (result.modifiedCount === 1) {
       // Get the applicant to create a notification
-      const applicant = await db.collection('users').findOne({
-        _id: new ObjectId(application.applicantId)
-      });
+      let applicant = null;
+      if (ObjectId.isValid(application.applicantId)) {
+        applicant = await db.collection('users').findOne({
+          _id: new ObjectId(application.applicantId)
+        });
+      }
       
       // Get the job details
       const job = await db.collection('jobs').findOne({
@@ -390,7 +426,7 @@ router.put('/:id/status', verifyToken, async (req, res) => {
       });
       
       // Create notification for the applicant
-      if (applicant && job) {
+      if (application.applicantId && job) {
         await createNotification(db, {
           recipientId: application.applicantId,
           senderId: req.user.id,
