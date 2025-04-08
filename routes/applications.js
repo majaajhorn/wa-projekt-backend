@@ -57,25 +57,62 @@ const upload = multer({
 router.get('/my-applications', verifyToken, async (req, res) => {
   try {
     const db = await connectDB();
+    
+    console.log('Fetching applications for user ID:', req.user.id);
+    
+    // Find applications for this user
     const applications = await db.collection('applications').find({
       applicantId: req.user.id
     }).toArray();
     
+    console.log(`Found ${applications.length} applications`);
+    
+    if (applications.length === 0) {
+      return res.status(200).json([]);
+    }
+    
     // Get job details for each application
-    const jobIds = applications.map(app => new ObjectId(app.jobId));
+    const jobIds = applications.map(app => {
+      try {
+        return new ObjectId(app.jobId);
+      } catch (e) {
+        console.error(`Invalid ObjectId for jobId: ${app.jobId}`);
+        return null;
+      }
+    }).filter(id => id !== null);
+    
+    console.log(`Fetching details for ${jobIds.length} jobs`);
+    
     const jobs = await db.collection('jobs').find({
       _id: { $in: jobIds }
     }).toArray();
     
+    console.log(`Found ${jobs.length} job details`);
+    
     // Combine application data with job details
     const result = applications.map(app => {
-      const job = jobs.find(j => j._id.toString() === app.jobId);
+      // Find the job for this application
+      const jobMatch = jobs.find(j => j._id.toString() === app.jobId);
+      
+      if (!jobMatch) {
+        console.log(`No job found for jobId: ${app.jobId}`);
+      }
+      
+      const job = jobMatch || { 
+        title: 'Unknown Job', 
+        company: 'Unknown', 
+        location: 'Unknown',
+        salary: 0,
+        salaryPeriod: 'monthly'
+      };
+      
       return {
         ...app,
-        job
+        job: job
       };
     });
     
+    console.log(`Returning ${result.length} combined application records`);
     res.status(200).json(result);
   } catch (error) {
     console.error('Error fetching applications:', error);
