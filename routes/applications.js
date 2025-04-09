@@ -53,6 +53,92 @@ const upload = multer({
   }
 });
 
+router.get('/job/:jobId', verifyToken, async (req, res) => {
+  try {
+    const jobId = req.params.jobId;
+    
+    if (!ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: 'Invalid job ID' });
+    }
+    
+    const db = await connectDB();
+    
+    // First check if the job belongs to this employer
+    const job = await db.collection('jobs').findOne({ 
+      _id: new ObjectId(jobId),
+      employerId: req.user.id
+    });
+    
+    if (!job) {
+      return res.status(403).json({ message: 'Job not found or you are not authorized to view these applications' });
+    }
+    
+    // Find all applications for this job
+    const applications = await db.collection('applications').find({
+      jobId: jobId
+    }).toArray();
+    
+    console.log(`Found ${applications.length} applications for job ${jobId}`);
+    
+    if (applications.length === 0) {
+      return res.status(200).json([]);
+    }
+    
+    // Get applicant details for each application
+    const applicantIds = applications.map(app => {
+      try {
+        return new ObjectId(app.applicantId);
+      } catch (e) {
+        console.error(`Invalid ObjectId for applicantId: ${app.applicantId}`);
+        return null;
+      }
+    }).filter(id => id !== null);
+    
+    const applicants = await db.collection('users').find({
+      _id: { $in: applicantIds }
+    }).project({
+      _id: 1,
+      fullName: 1,
+      email: 1,
+      phone: 1,
+      profileData: 1
+    }).toArray();
+    
+    // Combine application data with applicant details
+    const result = applications.map(app => {
+      const applicant = applicants.find(a => a._id.toString() === app.applicantId);
+      
+      // Create a nicely formatted applicant object
+      const formattedApplicant = {
+        _id: applicant?._id || 'unknown',
+        name: applicant?.fullName || 'Unknown Applicant',
+        email: applicant?.email || app.applicantEmail || 'No email provided',
+        phone: applicant?.profileData?.phone || 'No phone provided'
+      };
+      
+      // Set default status if not set
+      if (!app.status) {
+        app.status = 'new';
+      }
+      
+      return {
+        ...app,
+        applicant: formattedApplicant,
+        // If there's resume information, format it properly
+        resumeUrl: app.resumePath ? `/uploads/resumes/${app.resumePath.split('/').pop()}` : null,
+        // Extra data to help with display
+        experience: applicant?.profileData?.careExperience?.length || 0,
+        skills: applicant?.profileData?.qualification || []
+      };
+    });
+    
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error fetching job applications:', error);
+    res.status(500).json({ message: 'Error fetching job applications' });
+  }
+});
+
 // Get all applications for current user (jobseeker)
 router.get('/my-applications', verifyToken, async (req, res) => {
   try {
