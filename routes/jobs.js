@@ -121,49 +121,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Update the GET /:id route to include employer email
-router.get('/:id', async (req, res) => {
-  try {
-    const jobId = req.params.id;
-    
-    if (!ObjectId.isValid(jobId)) {
-      return res.status(400).json({ message: 'Invalid job ID' });
-    }
-    
-    const db = await connectDB();
-    const jobs = await jobCollection(db);
-    
-    const job = await jobs.findOne({ _id: new ObjectId(jobId) });
-    
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-    
-    // Get employer information to include email
-    if (job.employerId) {
-      try {
-        const employers = db.collection('users');
-        const employer = await employers.findOne({ 
-          _id: new ObjectId(job.employerId),
-          role: 'employer' 
-        });
-        
-        if (employer) {
-          // Add employer email to job object
-          job.employerEmail = employer.email;
-        }
-      } catch (err) {
-        console.error('Error fetching employer details:', err);
-        // Continue without employer details if error occurs
-      }
-    }
-    
-    res.status(200).json(job);
-  } catch (error) {
-    console.error('Error getting job details:', error);
-    res.status(500).json({ message: 'Error fetching job details' });
-  }
-});
+
 
 
 // Get jobs posted by the current employer
@@ -270,17 +228,59 @@ router.delete('/:id', verifyToken, isEmployer, async (req, res) => {
   }
 });
 
+// ADD THIS NEW ENDPOINT - Check if a job is saved by the current user
+router.get('/saved/check/:jobId', verifyToken, async (req, res) => {
+  try {
+    const db = await connectDB();
+    const jobId = req.params.jobId;
+    
+    // Validate job ID
+    if (!ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: 'Invalid job ID' });
+    }
+    
+    // Check if job exists first
+    const job = await db.collection('jobs').findOne({ 
+      _id: new ObjectId(jobId)
+    });
+    
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    
+    // Check if the job is saved by this user
+    const savedJob = await db.collection('savedJobs').findOne({
+      userId: req.user.id,
+      jobId: jobId
+    });
+    
+    res.status(200).json({
+      isSaved: !!savedJob
+    });
+  } catch (error) {
+    console.error('Error checking saved job status:', error);
+    res.status(500).json({ message: 'Error checking saved job status' });
+  }
+});
+
 // Get saved jobs for current user
 router.get('/saved-jobs', verifyToken, async (req, res) => {
   try {
-    const db = await connectDB(); // Add this line
+    const db = await connectDB();
+    
+    console.log('Fetching saved jobs for user:', req.user.id);
     
     const savedJobs = await db.collection('savedJobs').find({ 
-      userId: req.user.id // Change userId to id to match your other routes
+      userId: req.user.id
     }).toArray();
     
     // Get the full job details for each saved job
     const jobIds = savedJobs.map(saved => new ObjectId(saved.jobId));
+    
+    if (jobIds.length === 0) {
+      return res.status(200).json([]);
+    }
+    
     const jobs = await db.collection('jobs').find({ 
       _id: { $in: jobIds } 
     }).toArray();
@@ -294,20 +294,64 @@ router.get('/saved-jobs', verifyToken, async (req, res) => {
       };
     });
     
-    res.json(result);
+    res.status(200).json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error fetching saved jobs:', error);
+    res.status(500).json({ message: 'Error fetching saved jobs' });
+  }
+});
+
+// Update the GET /:id route to include employer email
+router.get('/:id', async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    
+    if (!ObjectId.isValid(jobId)) {
+      return res.status(400).json({ message: 'Invalid job ID' });
+    }
+    
+    const db = await connectDB();
+    const jobs = await jobCollection(db);
+    
+    const job = await jobs.findOne({ _id: new ObjectId(jobId) });
+    
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    
+    // Get employer information to include email
+    if (job.employerId) {
+      try {
+        const employers = db.collection('users');
+        const employer = await employers.findOne({ 
+          _id: new ObjectId(job.employerId),
+          role: 'employer' 
+        });
+        
+        if (employer) {
+          // Add employer email to job object
+          job.employerEmail = employer.email;
+        }
+      } catch (err) {
+        console.error('Error fetching employer details:', err);
+        // Continue without employer details if error occurs
+      }
+    }
+    
+    res.status(200).json(job);
+  } catch (error) {
+    console.error('Error getting job details:', error);
+    res.status(500).json({ message: 'Error fetching job details' });
   }
 });
 
 // Save a job
 router.post('/saved/:jobId', verifyToken, async (req, res) => {
   try {
-    const db = await connectDB(); // Add this line
+    const db = await connectDB();
     
     const jobId = req.params.jobId;
-    const userId = req.user.id; // Change userId to id
+    const userId = req.user.id;
     
     // Check if job exists
     const job = await db.collection('jobs').findOne({ _id: new ObjectId(jobId) });
@@ -322,30 +366,30 @@ router.post('/saved/:jobId', verifyToken, async (req, res) => {
     });
     
     if (existingSave) {
-      return res.status(400).json({ message: 'Job already saved' });
+      return res.status(200).json({ message: 'Job already saved' });
     }
     
     // Save the job
     await db.collection('savedJobs').insertOne({
       userId,
       jobId,
-      savedDate: new Date()
+      savedDate: new Date().toISOString()
     });
     
     res.status(201).json({ message: 'Job saved successfully' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error saving job:', error);
+    res.status(500).json({ message: 'Error saving job' });
   }
 });
 
 // Remove saved job
 router.delete('/saved/:jobId', verifyToken, async (req, res) => {
   try {
-    const db = await connectDB(); // Add this line
+    const db = await connectDB();
     
     const jobId = req.params.jobId;
-    const userId = req.user.id; // Change userId to id
+    const userId = req.user.id;
     
     const result = await db.collection('savedJobs').deleteOne({ 
       userId, 
@@ -356,10 +400,10 @@ router.delete('/saved/:jobId', verifyToken, async (req, res) => {
       return res.status(404).json({ message: 'Saved job not found' });
     }
     
-    res.json({ message: 'Job removed from saved jobs' });
+    res.status(200).json({ message: 'Job removed from saved jobs' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error removing saved job:', error);
+    res.status(500).json({ message: 'Error removing saved job' });
   }
 });
 

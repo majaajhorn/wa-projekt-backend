@@ -317,4 +317,23 @@ router.get('/jobseekers', verifyToken, async (req, res) => {
   }
 });
 
+// Add this route to your users.js file
+router.get('/profile-stats', verifyToken, async (req, res) => {
+  try {
+    const db = await connectDB();
+    
+    // Count profile views (you might need to create this collection)
+    const viewCount = await db.collection('profileViews').countDocuments({
+      userId: req.user.id
+    });
+    
+    res.status(200).json({
+      viewCount: viewCount || 0
+    });
+  } catch (error) {
+    console.error('Error fetching profile stats:', error);
+    res.status(500).json({ message: 'Error fetching profile stats' });
+  }
+});
+
 export default router;
