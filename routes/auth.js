@@ -309,4 +309,110 @@ router.get('/carers', verifyToken, async (req, res) => {
   }
 });
 
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+    
+    const db = await connectDB();
+    
+    // Find user by email
+    const user = await db.collection('users').findOne({ email });
+    
+    if (!user) {
+      // For security reasons, don't reveal if email exists or not
+      return res.status(200).json({ 
+        message: 'If an account with that email exists, a temporary password has been generated.' 
+      });
+    }
+    
+    // Generate simple temporary password
+    const tempPassword = Math.random().toString(36).slice(-8); // 8-character random string
+    
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(tempPassword, salt);
+    
+    // Update user's password
+    await db.collection('users').updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          password: hashedPassword,
+          passwordTemporary: true,
+          updatedAt: new Date().toISOString()
+        } 
+      }
+    );
+    
+    console.log(`Temporary password for ${email}: ${tempPassword}`);
+    
+    // Return the temporary password directly 
+    res.status(200).json({ 
+      message: 'Temporary password generated successfully',
+      tempPassword: tempPassword  
+    });
+  } catch (error) {
+    console.error('Error in forgot password:', error);
+    res.status(500).json({ message: 'An error occurred' });
+  }
+});
+
+// Change password
+router.post('/change-password', verifyToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+    }
+    
+    const db = await connectDB();
+    
+    // Find user by ID
+    const user = await db.collection('users').findOne({ _id: new ObjectId(req.user.id) });
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Update user password and remove temporary flag
+    await db.collection('users').updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          password: hashedPassword,
+          updatedAt: new Date().toISOString()
+        },
+        $unset: {
+          passwordTemporary: ""
+        }
+      }
+    );
+    
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'An error occurred' });
+  }
+});
+
 export default router;
