@@ -6,6 +6,7 @@ import jobsRoutes from './routes/jobs.js';
 import applicationsRoutes from './routes/applications.js'; // Add this import
 import usersRoutes from './routes/users.js'; // Add this import
 import notificationRoutes from './routes/notifications.js';
+import reviewsRoutes from './routes/reviews.js';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/applications', applicationsRoutes); // Add this route
 app.use('/api/users', usersRoutes); // Add this route
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reviews', reviewsRoutes);
 
 // Default route
 app.get('/', (req, res) => {
