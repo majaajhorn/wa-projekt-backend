@@ -207,7 +207,6 @@ router.get('/my-applications', verifyToken, async (req, res) => {
 });
 
 // Get all applications for the employer
-// MOVED THIS ROUTE BEFORE THE /:id ROUTE TO FIX THE CONFLICT
 router.get('/employer-applications', verifyToken, async (req, res) => {
   try {
     const db = await connectDB();
@@ -386,7 +385,6 @@ router.post('/apply', verifyToken, upload.single('resume'), async (req, res) => 
 });
 
 // Get a single application by ID
-// THIS ROUTE MOVED AFTER THE MORE SPECIFIC ROUTES
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     const applicationId = req.params.id;

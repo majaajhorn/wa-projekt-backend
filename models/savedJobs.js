@@ -1,4 +1,3 @@
-// models/savedJobs.js
 import { MongoClient } from 'mongodb';
 
 // Get or create the savedJobs collection

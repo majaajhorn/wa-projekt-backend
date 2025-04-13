@@ -1,4 +1,3 @@
-// models/reviews.js
 import { connectDB } from '../db.js';
 import { ObjectId } from 'mongodb';
 

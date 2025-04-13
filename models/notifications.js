@@ -1,4 +1,3 @@
-// models/notifications.js
 import { MongoClient } from 'mongodb';
 
 // Get or create the notifications collection

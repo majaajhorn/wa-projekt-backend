@@ -1,4 +1,3 @@
-// models/jobs.js
 import { MongoClient } from 'mongodb';
 
 // Get or create the job collection
