@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://your-vercel-domain.vercel.app'],
+  origin: ['http://localhost:5173', 'https://carematch.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
