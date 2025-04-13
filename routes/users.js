@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import multer from 'multer';
 import path from 'path';
+import { uploadMiddleware } from '../middlewares/cloudinaryConfig.js';
 
 dotenv.config();
 
@@ -254,7 +255,7 @@ router.put('/profile', verifyToken, async (req, res) => {
 });
 
 // Upload profile picture
-router.post('/profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
+/*router.post('/profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -265,6 +266,43 @@ router.post('/profile-picture', verifyToken, upload.single('profilePicture'), as
     const db = await connectDB();
     
     const result = await db.collection('users').updateOne(
+      { _id: new ObjectId(req.user.id) },
+      { 
+        $set: { 
+          profilePicture,
+          updatedAt: new Date().toISOString()
+        } 
+      }
+    );
+    
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.status(200).json({
+      message: 'Profile picture uploaded successfully',
+      profilePicture
+    });
+  } catch (error) {
+    console.error('Error uploading profile picture:', error);
+    res.status(500).json({ message: 'Error uploading profile picture' });
+  }
+});
+*/
+// Upload profile picture with Cloudinary
+router.post('/upload-profile-picture', verifyToken, uploadMiddleware.single('profilePicture'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    
+    // This is now a Cloudinary URL
+    const profilePicture = req.file.path;
+    
+    const db = await connectDB();
+    const usersCollection = db.collection('users');
+    
+    const result = await usersCollection.updateOne(
       { _id: new ObjectId(req.user.id) },
       { 
         $set: { 

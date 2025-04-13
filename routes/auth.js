@@ -5,31 +5,16 @@ import dotenv from 'dotenv';
 import { userCollection } from '../models/user.js';
 import { connectDB } from '../db.js';
 import { ObjectId } from 'mongodb';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { uploadMiddleware } from '../middlewares/cloudinaryConfig.js';
 
 dotenv.config();
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = './uploads/';
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath);
-    }
-    cb(null, uploadPath); // Save files in the 'uploads' folder
-  },
-  filename: (req, file, cb) => {
-    console.log('Uploading file:', file.originalname);
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
 
-const upload = multer({ storage });
 
 
 // Middleware to verify JWT token
@@ -123,7 +108,7 @@ router.get('/profile', verifyToken, async (req, res) => {
   });
 
 // Route to upload profile picture
-router.post('/upload-profile-picture', verifyToken, upload.single('profilePicture'), async (req, res) => {
+router.post('/upload-profile-picture', verifyToken, uploadMiddleware.single('profilePicture'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'No file uploaded' });
   }
@@ -133,13 +118,8 @@ router.post('/upload-profile-picture', verifyToken, upload.single('profilePictur
     const db = await connectDB();
     const users = await userCollection(db);
 
-    // Get server URL
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const baseUrl = `${protocol}://${host}`;
-    
-    // Create profile picture URL
-    const profilePictureUrl = `${baseUrl}/${req.file.path.replace(/\\/g, '/')}`;
+    // Get the Cloudinary URL from the req.file object
+    const profilePictureUrl = req.file.path;
 
     // Update user document with profile picture URL
     await users.updateOne(
@@ -157,6 +137,7 @@ router.post('/upload-profile-picture', verifyToken, upload.single('profilePictur
     res.status(500).json({ message: 'Error uploading profile picture' });
   }
 });
+
 // Route to update profile
 router.put('/update-profile', verifyToken, async (req, res) => {
   const userId = req.user.id;
