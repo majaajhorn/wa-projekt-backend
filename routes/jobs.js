@@ -121,9 +121,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-
-
-
 // Get jobs posted by the current employer
 router.get('/my-jobs', verifyToken, isEmployer, async (req, res) => {
   try {
@@ -140,7 +137,6 @@ router.get('/my-jobs', verifyToken, isEmployer, async (req, res) => {
     res.status(500).json({ message: 'Error fetching your job listings' });
   }
 });
-
 
 // Update a job posting
 router.put('/:id', verifyToken, isEmployer, async (req, res) => {
@@ -228,7 +224,7 @@ router.delete('/:id', verifyToken, isEmployer, async (req, res) => {
   }
 });
 
-// ADD THIS NEW ENDPOINT - Check if a job is saved by the current user
+// Check if a job is saved by the current user
 router.get('/saved/check/:jobId', verifyToken, async (req, res) => {
   try {
     const db = await connectDB();
@@ -301,7 +297,7 @@ router.get('/saved-jobs', verifyToken, async (req, res) => {
   }
 });
 
-// Update the GET /:id route to include employer email
+// include employer email
 router.get('/:id', async (req, res) => {
   try {
     const jobId = req.params.id;
@@ -334,7 +330,6 @@ router.get('/:id', async (req, res) => {
         }
       } catch (err) {
         console.error('Error fetching employer details:', err);
-        // Continue without employer details if error occurs
       }
     }
     

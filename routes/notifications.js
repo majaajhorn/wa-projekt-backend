@@ -1,4 +1,3 @@
-// routes/notifications.js
 import express from 'express';
 import { connectDB } from '../db.js';
 import { notificationCollection } from '../models/notifications.js';
@@ -182,7 +181,6 @@ export async function createNotification(db, data) {
             message = message.replace('undefined undefined', user.fullName);
           } else if (message.includes('has applied for your job')) {
             // If the message follows the format "[Name] has applied for your job: [JobTitle]"
-            // Replace the beginning of the message with the proper name
             const jobTitle = message.split('has applied for your job:')[1]?.trim() || '';
             message = `${user.fullName} has applied for your job: ${jobTitle}`;
           }
@@ -197,7 +195,7 @@ export async function createNotification(db, data) {
       senderId: data.senderId || null,
       type: data.type,
       title: data.title,
-      message: message, // Use the potentially updated message
+      message: message,
       relatedId: data.relatedId || null,
       relatedType: data.relatedType || null,
       isRead: false,

@@ -3,8 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import jobsRoutes from './routes/jobs.js';
-import applicationsRoutes from './routes/applications.js'; // Add this import
-import usersRoutes from './routes/users.js'; // Add this import
+import applicationsRoutes from './routes/applications.js'; 
+import usersRoutes from './routes/users.js'; 
 import notificationRoutes from './routes/notifications.js';
 import reviewsRoutes from './routes/reviews.js';
 
@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173', // Replace with your frontend URL
+  origin: 'http://localhost:5173', 
   credentials: true
 }));
 app.use(express.json());
@@ -27,8 +27,8 @@ app.use('/uploads', express.static('uploads'));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobsRoutes);
-app.use('/api/applications', applicationsRoutes); // Add this route
-app.use('/api/users', usersRoutes); // Add this route
+app.use('/api/applications', applicationsRoutes); 
+app.use('/api/users', usersRoutes); 
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reviews', reviewsRoutes);
 

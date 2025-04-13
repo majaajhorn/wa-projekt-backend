@@ -188,7 +188,7 @@ router.get('/me', verifyToken, async (req, res) => {
   }
 });
 
-// Get user by ID - THIS IS THE ENDPOINT WE NEED TO FIX
+// Get user by ID 
 router.get('/:id', verifyToken, async (req, res) => {
   try {
     // Validate the ID first

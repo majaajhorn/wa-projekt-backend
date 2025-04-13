@@ -106,13 +106,13 @@ router.post('/login', async (req, res) => {
 
 router.get('/profile', verifyToken, async (req, res) => {
     try {
-      const userId = req.user.id;  // Make sure your JWT token decoding middleware is working
+      const userId = req.user.id;  
       const db = await connectDB();
       const users = await userCollection(db);
 
       const user = await users.findOne({ _id: new ObjectId(userId) });
       if (user) {
-        res.status(200).json(user);  // Return the user profile
+        res.status(200).json(user);  
       } else {
         res.status(404).json({ message: 'User not found' });
       }
@@ -158,7 +158,6 @@ router.post('/upload-profile-picture', verifyToken, upload.single('profilePictur
   }
 });
 // Route to update profile
-// Route to update profile
 router.put('/update-profile', verifyToken, async (req, res) => {
   const userId = req.user.id;
   const { 
@@ -172,8 +171,8 @@ router.put('/update-profile', verifyToken, async (req, res) => {
     careExperience, 
     liveInExperience, 
     drivingLicence,
-    aboutYourself, // Add the new field
-    companyName    // Add this field for employer profiles
+    aboutYourself, 
+    companyName    
   } = req.body;
 
   try {
@@ -289,7 +288,6 @@ router.get('/carers', verifyToken, async (req, res) => {
     const users = await userCollection(db);
     
     // Fetch all users with role 'jobseeker'
-    // Note: We're not filtering by profileCompleted to ensure we get all users
     const carers = await users.find({ 
       role: 'jobseeker'
     }).toArray();
@@ -323,7 +321,6 @@ router.post('/forgot-password', async (req, res) => {
     const user = await db.collection('users').findOne({ email });
     
     if (!user) {
-      // For security reasons, don't reveal if email exists or not
       return res.status(200).json({ 
         message: 'If an account with that email exists, a temporary password has been generated.' 
       });
