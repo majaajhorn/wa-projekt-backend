@@ -19,16 +19,45 @@ const allowedOrigins = [
   'https://carematch.vercel.app'
 ];
 
+// Enhanced CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('Blocked origin:', origin); // Helpful for debugging
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
+  credentials: true,
+  maxAge: 86400 // Cache preflight requests for 24 hours
 }));
+
+// Add an OPTIONS preflight handler for all routes
+app.options('*', cors());
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Error:', err.message);
+  
+  // If it's a CORS error, send appropriate response
+  if (err.message.includes('CORS')) {
+    return res.status(403).json({
+      message: 'CORS error: Origin not allowed',
+      error: err.message
+    });
+  }
+  
+  res.status(500).json({
+    message: 'Internal server error',
+    error: err.message
+  });
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
